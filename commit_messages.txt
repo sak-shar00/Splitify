@@ -1,0 +1,53 @@
+install react
+install tailwind
+install shadcn
+initiated backend
+configured mongoDB
+use new config settings
+add index.js file which is the start point of backend and install packages
+add the models
+convert imports to cjs
+implement signup, signin and get profile functions
+add auth middleware
+add valiadtions  for sigup and signin
+add auth routes and use it in index.js
+implement verify otp feature during signup
+use cors in the backend
+implement context api for auth, add auth form and auth pages
+add a sonner, a toast to entire frontend
+add spinner and switch comps
+store tokens in cookies, user cannot navigate to auth pages once logged in
+implement functions on group such as create, delete, invite etc
+add sidebar comps from shadcn
+implement notification in backend
+send token in bearer to backend for middlewares
+setup notifications and group apis
+implement sidebar, dashboard, added pages, created components for groups, notifications, invitations etc
+implement expense management like creation, deletion etc
+add expense apis in the frontend
+add shadcn comps
+create frontend for expense management like expense creation, add tabs bar
+hide floating icon when chat tab is opened
+modularized the group detail page into components
+add split methods in the ui
+use native date picker
+implement chat ui, reposition delete group button
+create a separate comp for chat
+implement chat feature in backend
+fix chat ui
+update expense and settlement models for settlement management
+implement settlement functions
+implement routes for settlement
+add a feature of get the running balance of the group
+if the total doesnot become zero then randomly choose a member and add that decimal part to that user's total
+implement settlement tab
+implement auto add to the group feature in backend
+remove expense tab from sidebar, now show user details and auto add switch in setting page
+add create group button in groups page
+implement dashboard stats controller
+display the user stats on the dashboard page
+remove settlement type
+remove settlement type selector from frontend
+update the logic of your current balance in the dashboard
+add expense & settlement math explainer
+add expense logic explainer

@@ -1,9 +1,9 @@
-const { validationResult } = require('express-validator');
-const Expense = require('../models/Expsense');
-const Group = require('../models/Group');
-const User = require('../models/User');
-const Notification = require('../models/Notification');
-const { sendExpenseNotificationEmail } = require('../services/emailService');
+const { validationResult } = require("express-validator");
+const Expense = require("../models/Expsense");
+const Group = require("../models/Group");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
+const { sendExpenseNotificationEmail } = require("../services/emailService");
 
 const getDashboardStats = async (req, res) => {
   try {
@@ -13,31 +13,32 @@ const getDashboardStats = async (req, res) => {
     const totalGroups = groups.length;
 
     const expenses = await Expense.find({ paidBy: userId })
-      .populate('groupId', 'name')
+      .populate("groupId", "name")
+      .populate("paidBy", "name username")
       .sort({ createdAt: -1 });
-    
+
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
     const allExpenses = await Expense.find({
-      groupId: { $in: groups.map(g => g._id) },
-      settlementId: null
+      groupId: { $in: groups.map((g) => g._id) },
+      settlementId: null,
     });
 
     const netBalances = {};
-    groups.forEach(group => {
-      group.memberIds.forEach(memberId => {
+    groups.forEach((group) => {
+      group.memberIds.forEach((memberId) => {
         const id = memberId.toString();
         if (!netBalances[id]) netBalances[id] = 0;
       });
     });
 
-    allExpenses.forEach(expense => {
+    allExpenses.forEach((expense) => {
       const paidById = expense.paidBy.toString();
       if (netBalances[paidById] !== undefined) {
         netBalances[paidById] += expense.amount;
       }
 
-      expense.participants.forEach(participant => {
+      expense.participants.forEach((participant) => {
         const participantId = participant.userId.toString();
         if (netBalances[participantId] !== undefined) {
           netBalances[participantId] -= participant.share;
@@ -53,21 +54,23 @@ const getDashboardStats = async (req, res) => {
         totalGroups,
         totalExpenses: Math.round(totalExpenses * 100) / 100,
         userBalance,
-        expenses: expenses.map(exp => ({
+        expenses: expenses.map((exp) => ({
           _id: exp._id,
           title: exp.title,
           amount: exp.amount,
           currency: exp.currency,
           groupName: exp.groupId?.name,
-          createdAt: exp.createdAt
-        }))
-      }
+          createdAt: exp.createdAt,
+          paidByName: exp.paidBy?.name,
+          paidByUsername: exp.paidBy?.username,
+        })),
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching dashboard stats',
-      error: error.message
+      message: "Server error fetching dashboard stats",
+      error: error.message,
     });
   }
 };
@@ -78,78 +81,82 @@ const addExpense = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: errors.array()
+        message: "Validation failed",
+        errors: errors.array(),
       });
     }
 
-    const { groupId, title, amount, splitMethod, participants, notes } = req.body;
+    const { groupId, title, amount, splitMethod, participants, notes } =
+      req.body;
     const paidBy = req.user.id;
 
-    const group = await Group.findById(groupId).populate('memberIds', 'name email');
+    const group = await Group.findById(groupId).populate(
+      "memberIds",
+      "name email",
+    );
     if (!group) {
       return res.status(404).json({
         success: false,
-        message: 'Group not found'
+        message: "Group not found",
       });
     }
 
-    if (!group.memberIds.some(m => m._id.toString() === paidBy)) {
+    if (!group.memberIds.some((m) => m._id.toString() === paidBy)) {
       return res.status(403).json({
         success: false,
-        message: 'You are not a member of this group'
+        message: "You are not a member of this group",
       });
     }
 
-    const participantIds = participants.map(p => p.userId);
+    const participantIds = participants.map((p) => p.userId);
     const invalidMembers = participantIds.filter(
-      id => !group.memberIds.some(m => m._id.toString() === id)
+      (id) => !group.memberIds.some((m) => m._id.toString() === id),
     );
 
     if (invalidMembers.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Some participants are not members of this group'
+        message: "Some participants are not members of this group",
       });
     }
 
     let processedParticipants = [];
-    
-    if (splitMethod === 'equal') {
+
+    if (splitMethod === "equal") {
       const sharePerPerson = amount / participants.length;
-      processedParticipants = participants.map(p => ({
+      processedParticipants = participants.map((p) => ({
         userId: p.userId,
-        share: sharePerPerson
+        share: sharePerPerson,
       }));
-    } else if (splitMethod === 'amount') {
+    } else if (splitMethod === "amount") {
       const totalShares = participants.reduce((sum, p) => sum + p.share, 0);
       if (Math.abs(totalShares - amount) > 0.01) {
         return res.status(400).json({
           success: false,
-          message: 'Sum of shares must equal total amount'
+          message: "Sum of shares must equal total amount",
         });
       }
-      processedParticipants = participants.map(p => ({
+      processedParticipants = participants.map((p) => ({
         userId: p.userId,
-        share: p.share
+        share: p.share,
       }));
-    } else if (splitMethod === 'percentage') {
+    } else if (splitMethod === "percentage") {
       const totalPercentage = participants.reduce((sum, p) => sum + p.share, 0);
       if (Math.abs(totalPercentage - 100) > 0.01) {
         return res.status(400).json({
           success: false,
-          message: 'Sum of percentages must equal 100'
+          message: "Sum of percentages must equal 100",
         });
       }
-      processedParticipants = participants.map(p => ({
+      processedParticipants = participants.map((p) => ({
         userId: p.userId,
-        share: (amount * p.share) / 100
+        share: (amount * p.share) / 100,
       }));
-    } else if (splitMethod === 'shares') {
+    } else if (splitMethod === "shares") {
       const totalShares = participants.reduce((sum, p) => sum + p.share, 0);
-      processedParticipants = participants.map(p => ({
+      processedParticipants = participants.map((p) => ({
         userId: p.userId,
-        share: (amount * p.share) / totalShares
+        share: (amount * p.share) / totalShares,
       }));
     }
 
@@ -162,27 +169,29 @@ const addExpense = async (req, res) => {
       participants: processedParticipants,
       splitMethod,
       metadata: { notes },
-      createdBy: paidBy
+      createdBy: paidBy,
     });
 
     const populatedExpense = await Expense.findById(expense._id)
-      .populate('paidBy', 'name username email')
-      .populate('participants.userId', 'name username email');
+      .populate("paidBy", "name username email")
+      .populate("participants.userId", "name username email");
 
     const payer = await User.findById(paidBy);
     const notificationPromises = [];
 
     for (const participant of processedParticipants) {
       if (participant.userId !== paidBy) {
-        const user = group.memberIds.find(m => m._id.toString() === participant.userId);
-        
+        const user = group.memberIds.find(
+          (m) => m._id.toString() === participant.userId,
+        );
+
         notificationPromises.push(
           Notification.create({
             userId: participant.userId,
-            type: 'expense',
+            type: "expense",
             message: `${payer.name} added "${title}" (${group.currency} ${amount}) in "${group.name}"`,
-            groupId: group._id
-          })
+            groupId: group._id,
+          }),
         );
 
         notificationPromises.push(
@@ -194,8 +203,8 @@ const addExpense = async (req, res) => {
             amount,
             group.currency,
             participant.share,
-            group.name
-          )
+            group.name,
+          ),
         );
       }
     }
@@ -204,14 +213,14 @@ const addExpense = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Expense added successfully',
-      expense: populatedExpense
+      message: "Expense added successfully",
+      expense: populatedExpense,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error adding expense',
-      error: error.message
+      message: "Server error adding expense",
+      error: error.message,
     });
   }
 };
@@ -224,31 +233,31 @@ const getGroupExpenses = async (req, res) => {
     if (!group) {
       return res.status(404).json({
         success: false,
-        message: 'Group not found'
+        message: "Group not found",
       });
     }
 
-    if (!group.memberIds.some(m => m._id.toString() === req.user.id)) {
+    if (!group.memberIds.some((m) => m._id.toString() === req.user.id)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: "Access denied",
       });
     }
 
     const expenses = await Expense.find({ groupId })
-      .populate('paidBy', 'name username email avatarUrl')
-      .populate('participants.userId', 'name username email')
+      .populate("paidBy", "name username email avatarUrl")
+      .populate("participants.userId", "name username email")
       .sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      expenses
+      expenses,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching expenses',
-      error: error.message
+      message: "Server error fetching expenses",
+      error: error.message,
     });
   }
 };
@@ -257,47 +266,53 @@ const getGroupBalances = async (req, res) => {
   try {
     const { groupId } = req.params;
 
-    const group = await Group.findById(groupId).populate('memberIds', 'name username email avatarUrl');
+    const group = await Group.findById(groupId).populate(
+      "memberIds",
+      "name username email avatarUrl",
+    );
     if (!group) {
       return res.status(404).json({
         success: false,
-        message: 'Group not found'
+        message: "Group not found",
       });
     }
 
-    if (!group.memberIds.some(m => m._id.toString() === req.user.id)) {
+    if (!group.memberIds.some((m) => m._id.toString() === req.user.id)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: "Access denied",
       });
     }
 
-    const unsettledExpenses = await Expense.find({ groupId, settlementId: null });
+    const unsettledExpenses = await Expense.find({
+      groupId,
+      settlementId: null,
+    });
 
     const netBalances = {};
-    group.memberIds.forEach(member => {
+    group.memberIds.forEach((member) => {
       netBalances[member._id.toString()] = 0;
     });
 
-    unsettledExpenses.forEach(expense => {
+    unsettledExpenses.forEach((expense) => {
       const paidById = expense.paidBy.toString();
       netBalances[paidById] += expense.amount;
 
-      expense.participants.forEach(participant => {
+      expense.participants.forEach((participant) => {
         const participantId = participant.userId.toString();
         netBalances[participantId] -= participant.share;
       });
     });
 
-    const balances = group.memberIds.map(member => ({
+    const balances = group.memberIds.map((member) => ({
       user: {
         _id: member._id,
         name: member.name,
         username: member.username,
         email: member.email,
-        avatarUrl: member.avatarUrl
+        avatarUrl: member.avatarUrl,
       },
-      netBalance: Math.round(netBalances[member._id.toString()] * 100) / 100
+      netBalance: Math.round(netBalances[member._id.toString()] * 100) / 100,
     }));
 
     const transactions = [];
@@ -312,19 +327,24 @@ const getGroupBalances = async (req, res) => {
     creditors.sort((a, b) => b.amount - a.amount);
     debtors.sort((a, b) => b.amount - a.amount);
 
-    let i = 0, j = 0;
+    let i = 0,
+      j = 0;
     while (i < creditors.length && j < debtors.length) {
       const creditor = creditors[i];
       const debtor = debtors[j];
       const amount = Math.min(creditor.amount, debtor.amount);
 
-      const fromUser = group.memberIds.find(m => m._id.toString() === debtor.userId);
-      const toUser = group.memberIds.find(m => m._id.toString() === creditor.userId);
+      const fromUser = group.memberIds.find(
+        (m) => m._id.toString() === debtor.userId,
+      );
+      const toUser = group.memberIds.find(
+        (m) => m._id.toString() === creditor.userId,
+      );
 
       transactions.push({
         from: { _id: fromUser._id, name: fromUser.name },
         to: { _id: toUser._id, name: toUser.name },
-        amount: Math.round(amount * 100) / 100
+        amount: Math.round(amount * 100) / 100,
       });
 
       creditor.amount -= amount;
@@ -337,13 +357,13 @@ const getGroupBalances = async (req, res) => {
     res.json({
       success: true,
       balances,
-      transactions
+      transactions,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error calculating balances',
-      error: error.message
+      message: "Server error calculating balances",
+      error: error.message,
     });
   }
 };
@@ -356,14 +376,14 @@ const deleteExpense = async (req, res) => {
     if (!expense) {
       return res.status(404).json({
         success: false,
-        message: 'Expense not found'
+        message: "Expense not found",
       });
     }
 
     if (expense.createdBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
-        message: 'Only the creator can delete this expense'
+        message: "Only the creator can delete this expense",
       });
     }
 
@@ -371,13 +391,13 @@ const deleteExpense = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Expense deleted successfully'
+      message: "Expense deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error deleting expense',
-      error: error.message
+      message: "Server error deleting expense",
+      error: error.message,
     });
   }
 };
@@ -387,5 +407,5 @@ module.exports = {
   getGroupExpenses,
   getGroupBalances,
   deleteExpense,
-  getDashboardStats
+  getDashboardStats,
 };

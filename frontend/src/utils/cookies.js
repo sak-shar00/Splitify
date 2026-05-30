@@ -1,16 +1,14 @@
-// Simple cookie utilities
-export const setCookie = (name, value, days = 7) => {
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`;
+// Cookie-like utilities (now backed by sessionStorage for per-tab auth isolation)
+// Keeps the same function names used across the app.
+
+export const setCookie = (name, value) => {
+  window.sessionStorage.setItem(name, value);
 };
 
 export const getCookie = (name) => {
-  return document.cookie.split('; ').reduce((r, v) => {
-    const parts = v.split('=');
-    return parts[0] === name ? decodeURIComponent(parts[1]) : r;
-  }, '');
+  return window.sessionStorage.getItem(name) || "";
 };
 
 export const deleteCookie = (name) => {
-  setCookie(name, '', -1);
+  window.sessionStorage.removeItem(name);
 };

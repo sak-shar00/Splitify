@@ -4,45 +4,73 @@ const SettlementSchema = new mongoose.Schema({
   groupId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Group",
-    required: true
+    required: true,
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    required: true
+    required: true,
   },
   type: {
     type: String,
-    default: "final"
+    default: "final",
   },
 
   notes: {
     type: String,
-    trim: true
+    trim: true,
   },
   balances: [
     {
-      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
       netBalance: { type: Number, required: true },
-      status: { type: String, enum: ["owed", "owes", "even"], required: true }
-    }
+      status: { type: String, enum: ["owed", "owes", "even"], required: true },
+    },
   ],
   transactions: [
     {
-      from: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      from: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
       to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-      amount: { type: Number, required: true }
-    }
+      amount: { type: Number, required: true },
+    },
   ],
+
+  // Used by incremental "Settle Up" workflow (one settlement can contain multiple legs)
+  settlementLegs: [
+    {
+      from: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      amount: { type: Number, required: true },
+      status: {
+        type: String,
+        enum: ["pending", "completed"],
+        default: "pending",
+      },
+      settledAt: { type: Date },
+    },
+  ],
+
   status: {
     type: String,
     enum: ["pending", "completed"],
-    default: "pending"
+    default: "pending",
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 module.exports = mongoose.model("Settlement", SettlementSchema);
